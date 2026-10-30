@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Complexity &amp; Side Channels — An Interactive Lesson</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="site-header">
+  <h1>Complexity &amp; Side Channels</h1>
+  <p class="tagline">
+    An interactive lesson on how the <em>cost</em> of an algorithm — the work it does and the
+    time it takes — can both predict performance and leak secrets.
+  </p>
+  <nav class="toc">
+    <a href="#growth">1. Growth rates</a>
+    <a href="#race">2. Search race</a>
+    <a href="#timing">3. Timing side channel</a>
+    <a href="#defenses">4. Defenses</a>
+    <a href="#quiz">5. Check yourself</a>
+  </nav>
+</header>
+
+<main>
+  <!-- ============================ 1. GROWTH RATES ============================ -->
+  <section id="growth" class="card">
+    <h2>1. How fast does the work grow?</h2>
+    <p class="lede">
+      Big-O notation describes how the number of operations grows as the input size
+      <strong>n</strong> grows. Move the slider and watch the curves — and the clock — explode.
+    </p>
+
+    <div class="controls">
+      <label class="control">
+        <span class="control-label">Input size n = <output id="nValue">32</output></span>
+        <input type="range" id="nSlider" min="1" max="64" value="32" step="1" />
+      </label>
+
+      <label class="control">
+        <span class="control-label">Machine speed</span>
+        <select id="speedSelect">
+          <option value="1e6">1 million ops/sec (toy interpreter)</option>
+          <option value="1e9" selected>1 billion ops/sec (typical CPU core)</option>
+          <option value="1e12">1 trillion ops/sec (big cluster)</option>
+        </select>
+      </label>
+
+      <label class="control checkbox">
+        <input type="checkbox" id="logScale" checked />
+        <span>Logarithmic y-axis (needed to see all curves at once)</span>
+      </label>
+    </div>
+
+    <fieldset class="legend-picker">
+      <legend>Show complexity classes</legend>
+      <div id="classToggles" class="chip-row"></div>
+    </fieldset>
+
+    <canvas id="growthChart" width="900" height="420" aria-label="Chart comparing growth rates"></canvas>
+
+    <table class="data-table" id="growthTable">
+      <thead>
+        <tr>
+          <th scope="col">Class</th>
+          <th scope="col">Typical algorithm</th>
+          <th scope="col">Operations at n = <span class="n-echo">32</span></th>
+          <th scope="col">Estimated time</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <p class="takeaway">
+      <strong>Takeaway:</strong> constants and hardware barely matter once the growth rate is bad.
+      Moving from <code>O(n²)</code> to <code>O(n log n)</code> beats buying a thousand faster machines.
+    </p>
+  </section>
+
+  <!-- ============================ 2. SEARCH RACE ============================ -->
+  <section id="race" class="card">
+    <h2>2. Watch the difference: linear vs. binary search</h2>
+    <p class="lede">
+      Both algorithms find the same answer. Count the probes to feel the difference between
+      <code>O(n)</code> and <code>O(log n)</code>.
+    </p>
+
+    <div class="controls">
+      <label class="control">
+        <span class="control-label">Array size = <output id="arrayValue">64</output> items</span>
+        <input type="range" id="arraySlider" min="0" max="7" value="3" step="1" />
+      </label>
+
+      <label class="control">
+        <span class="control-label">Animation speed</span>
+        <select id="raceSpeed">
+          <option value="260">Slow</option>
+          <option value="110" selected>Normal</option>
+          <option value="25">Fast</option>
+        </select>
+      </label>
+
+      <div class="button-row">
+        <button id="newArrayBtn" class="btn ghost" type="button">New target</button>
+        <button id="raceBtn" class="btn" type="button">Race!</button>
+      </div>
+    </div>
+
+    <p class="target-note">Searching a sorted array for the value <strong id="targetValue">—</strong>.</p>
+
+    <div class="race-grid">
+      <div class="racer">
+        <h3>Linear search — <code>O(n)</code></h3>
+        <div class="cells" id="linearCells"></div>
+        <p class="probe-count">Probes: <strong id="linearProbes">0</strong> <span id="linearStatus"></span></p>
+      </div>
+      <div class="racer">
+        <h3>Binary search — <code>O(log n)</code></h3>
+        <div class="cells" id="binaryCells"></div>
+        <p class="probe-count">Probes: <strong id="binaryProbes">0</strong> <span id="binaryStatus"></span></p>
+      </div>
+    </div>
+
+    <p class="takeaway">
+      <strong>Takeaway:</strong> on 1,024 items linear search needs up to 1,024 probes;
+      binary search needs at most 10. Every doubling of the array adds just <em>one</em> probe.
+    </p>
+  </section>
+
+  <!-- ============================ 3. TIMING SIDE CHANNEL ============================ -->
+  <section id="timing" class="card">
+    <h2>3. When running time becomes a secret leak</h2>
+    <p class="lede">
+      A <strong>side channel</strong> is information that escapes through how a computation runs
+      rather than what it returns. The classic example is a password/token comparison that
+      <em>stops at the first wrong character</em>: the more characters you get right, the longer
+      the check takes. That tiny timing difference turns a <code>O(k<sup>n</sup>)</code> brute-force
+      problem into a <code>O(k·n)</code> stroll.
+    </p>
+
+    <div class="sim-note">
+      This is a <strong>simulation</strong>. Timings are generated from a cost model
+      (one comparison ≈ 12&nbsp;ns) plus random jitter, so the lesson is reproducible and nothing
+      on your machine is attacked or measured.
+    </div>
+
+    <div class="controls">
+      <label class="control">
+        <span class="control-label">Secret token (letters/digits)</span>
+        <input type="text" id="secretInput" value="CANARY" maxlength="10" spellcheck="false" />
+      </label>
+
+      <label class="control">
+        <span class="control-label">Comparison implementation</span>
+        <select id="compareMode">
+          <option value="vulnerable" selected>Vulnerable — early-exit compare</option>
+          <option value="constant">Hardened — constant-time compare</option>
+        </select>
+      </label>
+
+      <label class="control">
+        <span class="control-label">Network / measurement jitter = <output id="noiseValue">4</output> ns</span>
+        <input type="range" id="noiseSlider" min="0" max="60" value="4" step="1" />
+      </label>
+
+      <label class="control">
+        <span class="control-label">Samples averaged per guess = <output id="samplesValue">25</output></span>
+        <input type="range" id="samplesSlider" min="1" max="500" value="25" step="1" />
+      </label>
+    </div>
+
+    <div class="try-row">
+      <label class="control grow">
+        <span class="control-label">Try a guess yourself</span>
+        <input type="text" id="guessInput" value="CAXXXX" maxlength="10" spellcheck="false" />
+      </label>
+      <button id="measureBtn" class="btn ghost" type="button">Measure this guess</button>
+      <p id="measureResult" class="measure-result">—</p>
+    </div>
+
+    <div class="button-row">
+      <button id="attackBtn" class="btn danger" type="button">Run the timing attack</button>
+      <button id="resetAttackBtn" class="btn ghost" type="button">Reset</button>
+      <span id="attackState" class="attack-state">Idle</span>
+    </div>
+
+    <div class="recovered">
+      <span class="recovered-label">Recovered so far:</span>
+      <span id="recoveredText" class="recovered-text">······</span>
+    </div>
+
+    <div class="chart-wrap">
+      <h3 id="candidateTitle">Average response time per candidate character</h3>
+      <div id="candidateBars" class="bars" role="img" aria-label="Measured time for each candidate character"></div>
+    </div>
+
+    <table class="data-table" id="costTable">
+      <tbody>
+        <tr>
+          <th scope="row">Brute force (no side channel)</th>
+          <td><code>O(k<sup>n</sup>)</code></td>
+          <td id="bruteCost">—</td>
+        </tr>
+        <tr>
+          <th scope="row">Timing attack (side channel)</th>
+          <td><code>O(k·n)</code></td>
+          <td id="sideCost">—</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="takeaway">
+      <strong>Takeaway:</strong> the attack works because the <em>duration</em> of the comparison
+      depends on secret data. Raise the jitter slider and the signal disappears — until you raise
+      the sample count, because averaging cancels random noise. Attackers simply measure more.
+      Switch the implementation to constant-time and no amount of sampling helps.
+    </p>
+  </section>
+
+  <!-- ============================ 4. DEFENSES ============================ -->
+  <section id="defenses" class="card">
+    <h2>4. Writing code that does not leak</h2>
+    <div class="code-compare">
+      <div class="code-block bad">
+        <h3>❌ Leaks timing</h3>
+<pre><code>function unsafeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i &lt; a.length; i++) {
+    // returns early -> run time
+    // depends on the secret
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}</code></pre>
+      </div>
+      <div class="code-block good">
+        <h3>✅ Constant time</h3>
+<pre><code>function safeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i &lt; a.length; i++) {
+    // always touches every byte
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}</code></pre>
+      </div>
+    </div>
+
+    <ul class="defense-list">
+      <li><strong>Use vetted primitives.</strong> <code>crypto.timingSafeEqual</code> (Node),
+        <code>hmac.compare_digest</code> (Python), <code>subtle.ConstantTimeCompare</code> (Go).</li>
+      <li><strong>Compare hashes, not raw secrets.</strong> Comparing HMACs of both values means a
+        leaked prefix tells the attacker nothing useful.</li>
+      <li><strong>Make control flow secret-independent.</strong> No branches, early returns, table
+        lookups, or memory accesses driven by secret data.</li>
+      <li><strong>Rate-limit and alert.</strong> The attack needs thousands of near-identical
+        requests — that is detectable.</li>
+      <li><strong>Remember the other channels.</strong> Power draw, cache behavior (Spectre/Meltdown),
+        EM emissions, compression size (CRIME/BREACH), and even error-message wording all leak.</li>
+    </ul>
+  </section>
+
+  <!-- ============================ 5. QUIZ ============================ -->
+  <section id="quiz" class="card">
+    <h2>5. Check yourself</h2>
+    <div id="quizContainer"></div>
+    <p id="quizScore" class="quiz-score"></p>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>
+    Educational demo — all attacks are simulated against a local make-believe secret.
+    Use the ideas to harden your own code, never to probe systems you do not own.
+  </p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
